@@ -130,11 +130,17 @@ function countChars() {
   document.getElementById('char-count').textContent = len.toLocaleString();
 }
 
+/* ── FORMSPREE 설정 ──────────────────────────────────────────
+   Formspree 가입 후 발급받은 폼 ID를 아래에 입력하세요.
+   예) 'xabcdefg' → 'https://formspree.io/f/xabcdefg'
+   ──────────────────────────────────────────────────────── */
+const FORMSPREE_ID = 'xjgjplrg'; // ← 여기에 Formspree 폼 ID 입력
+
 /* ── FORM: 제출 처리 ── */
-function submitForm(type) {
-  const nameId  = type === 'text' ? 'name'      : 'int-name';
-  const phoneId = type === 'text' ? 'phone'     : 'int-phone';
-  const emailId = type === 'text' ? 'email'     : 'int-email';
+async function submitForm(type) {
+  const nameId    = type === 'text' ? 'name'        : 'int-name';
+  const phoneId   = type === 'text' ? 'phone'       : 'int-phone';
+  const emailId   = type === 'text' ? 'email'       : 'int-email';
 
   const name  = document.getElementById(nameId)?.value.trim()  || '';
   const phone = document.getElementById(phoneId)?.value.trim() || '';
@@ -151,13 +157,73 @@ function submitForm(type) {
     return;
   }
 
-  document.getElementById('panel-text').style.display      = 'none';
-  document.getElementById('panel-interpret').style.display = 'none';
-  document.getElementById('form-success').style.display    = 'block';
-  document.getElementById('form-success').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // ── 폼 데이터 수집 ──
+  const formData = { _replyto: email };
 
-  // Re-apply language to success state text
-  applyLanguage(currentLang);
+  if (type === 'text') {
+    const dirBtn   = document.querySelector('.dir-btn.active');
+    const fieldBtn = document.querySelector('.field-btn[style*="light-blue"]') ||
+                     [...document.querySelectorAll('.field-btn')].find(b => b.style.background.includes('rgb'));
+    formData['의뢰유형']   = '번역 의뢰';
+    formData['성함']       = name;
+    formData['연락처']     = phone;
+    formData['이메일']     = email;
+    formData['번역방향']   = dirBtn ? dirBtn.textContent.trim() : '-';
+    formData['번역분야']   = fieldBtn ? fieldBtn.textContent.trim() : '-';
+    formData['원문내용']   = document.getElementById('source-text')?.value.trim() || '-';
+    formData['희망납기일'] = document.getElementById('deadline')?.value || '-';
+  } else {
+    const typeBtn = [...document.querySelectorAll('.type-btn')].find(b => b.style.background.includes('rgb'));
+    formData['의뢰유형']   = '통역 의뢰';
+    formData['성함']       = name;
+    formData['연락처']     = phone;
+    formData['이메일']     = email;
+    formData['통역유형']   = typeBtn ? typeBtn.textContent.trim() : '-';
+    formData['예정일정']   = document.getElementById('int-date')?.value || '-';
+    formData['통역내용']   = document.getElementById('int-content')?.value.trim() || '-';
+  }
+
+  // ── 제출 버튼 로딩 상태 ──
+  const submitBtn = document.querySelector(`#panel-${type === 'text' ? 'text' : 'interpret'} .btn-submit`);
+  const originalText = submitBtn ? submitBtn.innerHTML : '';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span>전송 중...</span>';
+  }
+
+  // ── Formspree로 전송 ──
+  try {
+    if (FORMSPREE_ID === 'YOUR_FORM_ID') {
+      // 개발/테스트 모드: Formspree ID 미설정 시 콘솔에만 출력
+      console.log('[GT-CnT] Formspree ID가 설정되지 않았습니다. 수집된 데이터:', formData);
+    } else {
+      const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      if (!res.ok) throw new Error('전송 실패');
+    }
+
+    // ── 성공 화면 표시 ──
+    document.getElementById('panel-text').style.display      = 'none';
+    document.getElementById('panel-interpret').style.display = 'none';
+    document.getElementById('form-success').style.display    = 'block';
+    document.getElementById('form-success').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    applyLanguage(currentLang);
+
+  } catch (err) {
+    console.error('[GT-CnT] 전송 오류:', err);
+    const errMsg = currentLang === 'ja'
+      ? '送信に失敗しました。直接メールでお問い合わせください。\ngtcosmed@gmail.com'
+      : '전송에 실패했습니다. 직접 이메일로 문의해주세요.\ngtcosmed@gmail.com';
+    alert(errMsg);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalText;
+    }
+  }
 }
 
 /* ── FORM: 초기화 ── */
