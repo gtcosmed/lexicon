@@ -134,7 +134,7 @@ function countChars() {
 }
 
 /* ── FORM: 제출 처리 ── */
-function submitForm(type) {
+async function submitForm(type) {
   const nameId  = type === 'text' ? 'name'      : 'int-name';
   const phoneId = type === 'text' ? 'phone'     : 'int-phone';
   const emailId = type === 'text' ? 'email'     : 'int-email';
@@ -154,13 +154,57 @@ function submitForm(type) {
     return;
   }
 
-  document.getElementById('panel-text').style.display      = 'none';
-  document.getElementById('panel-interpret').style.display = 'none';
-  document.getElementById('form-success').style.display    = 'block';
-  document.getElementById('form-success').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // ── 폼 데이터 수집 ──
+  const formData = { _replyto: email };
 
-  // Re-apply language to success state text
-  applyLanguage(currentLang);
+  if (type === 'text') {
+    const dirBtn   = document.querySelector('.dir-btn.active');
+    const fieldBtn = [...document.querySelectorAll('.field-btn')].find(b => b.style.background && b.style.background !== '#fff');
+    formData['의뢰유형']   = '번역 의뢰';
+    formData['성함']       = name;
+    formData['연락처']     = phone;
+    formData['이메일']     = email;
+    formData['번역방향']   = dirBtn ? dirBtn.textContent.trim() : '-';
+    formData['번역분야']   = fieldBtn ? fieldBtn.textContent.trim() : '-';
+    formData['원문내용']   = document.getElementById('source-text')?.value.trim() || '-';
+    formData['희망납기일'] = document.getElementById('deadline')?.value || '-';
+  } else {
+    const typeBtn = [...document.querySelectorAll('.type-btn')].find(b => b.style.background && b.style.background !== '#fff');
+    formData['의뢰유형'] = '통역 의뢰';
+    formData['성함']     = name;
+    formData['연락처']   = phone;
+    formData['이메일']   = email;
+    formData['통역유형'] = typeBtn ? typeBtn.textContent.trim() : '-';
+    formData['예정일정'] = document.getElementById('int-date')?.value || '-';
+    formData['통역내용'] = document.getElementById('int-content')?.value.trim() || '-';
+  }
+
+  // ── 버튼 로딩 상태 ──
+  const submitBtn = document.querySelector(`#panel-${type === 'text' ? 'text' : 'interpret'} .btn-submit`);
+  if (submitBtn) { submitBtn.disabled = true; }
+
+  try {
+    const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(formData)
+    });
+    if (!res.ok) throw new Error('전송 실패');
+
+    document.getElementById('panel-text').style.display      = 'none';
+    document.getElementById('panel-interpret').style.display = 'none';
+    document.getElementById('form-success').style.display    = 'block';
+    document.getElementById('form-success').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    applyLanguage(currentLang);
+
+  } catch (e) {
+    const errMsg = currentLang === 'ja'
+      ? '送信に失敗しました。直接メールでお問い合わせください。\ngtcosmed@gmail.com'
+      : '전송에 실패했습니다. 직접 이메일로 문의해주세요.\ngtcosmed@gmail.com';
+    alert(errMsg);
+  } finally {
+    if (submitBtn) { submitBtn.disabled = false; }
+  }
 }
 
 /* ── FORM: 초기화 ── */
